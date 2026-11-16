@@ -66,6 +66,14 @@ function YaziProcess:start(config, paths, callbacks)
     YAZI_NVIM_ID = yazi_id,
   }, self.ya_process.event_source:environment())
 
+  if config.future_features.forward_kitty_graphics == true then
+    -- Yazi treats libvterm (Neovim's embedded terminal) as not supporting any
+    -- graphics protocol. KITTY_WINDOW_ID makes it select KGP instead; the
+    -- emitted APCs are then forwarded to the host terminal by
+    -- `yazi.kitty_graphics`.
+    env.KITTY_WINDOW_ID = vim.env.KITTY_WINDOW_ID or "1"
+  end
+
   -- hand the user-configured `plugin_keymaps` to the `nvim.yazi` plugin, which
   -- registers them inside yazi at runtime.
   if config.future_features.yazi_plugin_keymaps ~= nil then

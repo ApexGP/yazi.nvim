@@ -153,6 +153,10 @@ function M.yazi(config, input_path, args)
 
   M.active_contexts:push(yazi_context)
 
+  if config.future_features.forward_kitty_graphics == true then
+    require("yazi.kitty_graphics").setup(yazi_buffer)
+  end
+
   config.hooks.yazi_opened(path.filename, win.content_buffer, config)
 
   if config.set_keymappings_function ~= nil then

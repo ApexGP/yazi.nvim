@@ -140,6 +140,19 @@ return {
       )
     end
 
+    if config.future_features.forward_kitty_graphics == true then
+      local kitty_graphics = require("yazi.kitty_graphics")
+      if kitty_graphics.is_outer_terminal_supported() then
+        vim.health.info(
+          "Kitty graphics forwarding is enabled and the outer terminal looks compatible."
+        )
+      else
+        vim.health.warn(
+          "Kitty graphics forwarding is enabled, but the outer terminal does not look like kitty or ghostty. Images may not be displayed."
+        )
+      end
+    end
+
     local resolver = config.integrations.resolve_relative_path_application
     if
       resolver

@@ -23,6 +23,7 @@ function M.default()
     future_features = {
       use_cwd_file = true,
       yazi_plugin_keymaps = {},
+      forward_kitty_graphics = false,
     },
     open_multiple_tabs = false,
     enable_mouse_support = false,
