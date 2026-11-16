@@ -43,6 +43,9 @@ open yazi in a floating window in Neovim.
 
 For previewing images with yazi, see Yazi's
 [documentation related to Neovim](https://yazi-rs.github.io/docs/image-preview/#neovim).
+If you use kitty or Ghostty and a yazi version with the embedded-terminal fix,
+yazi.nvim can forward the kitty graphics protocol to the host terminal. See
+[documentation/kitty-graphics.md](documentation/kitty-graphics.md).
 
 ## 📦 Installation
 
@@ -174,6 +177,43 @@ These are the default keybindings that are available when yazi is open:
       [documentation/copy-relative-path-to-files.md](documentation/copy-relative-path-to-files.md) for more information
   - `<tab>`: make yazi jump to the open buffers in Neovim. See [#232](https://github.com/mikavilpas/yazi.nvim/pull/232)
     for more information
+
+### Kitty graphics (experimental)
+
+Neovim's embedded terminal cannot display images by itself. By default yazi
+detects it as a terminal without graphics support and falls back to chafa.
+When the host terminal supports the kitty graphics protocol (KGP) with unicode
+placeholders, yazi.nvim can forward the image data emitted by yazi:
+
+```lua
+---@type YaziConfig
+opts = {
+  future_features = {
+    forward_kitty_graphics = true,
+  },
+}
+```
+
+This requires:
+
+- kitty >= 0.28.0 or Ghostty
+- a yazi version that keeps a kitty brand detected from the environment
+  instead of overriding it with libvterm
+- Neovim 0.12+ (`TermRequest` support for APC sequences and `nvim_ui_send()`)
+
+When Neovim runs inside tmux, also add this to `tmux.conf`:
+
+```sh
+set -g allow-passthrough on
+set -ga update-environment TERM
+set -ga update-environment TERM_PROGRAM
+```
+
+yazi.nvim wraps the forwarded APCs in tmux's DCS passthrough format
+automatically. `allow-passthrough on` is still required.
+
+See [documentation/kitty-graphics.md](documentation/kitty-graphics.md) for
+details and limitations.
 
 ### ⚙️⚙️ Advanced configuration
 
@@ -361,6 +401,12 @@ return {
       -- use a file to store the last directory that yazi was in before it was
       -- closed. Defaults to `true`.
       use_cwd_file = true,
+
+      -- Experimental: forward kitty graphics protocol (KGP) sequences emitted
+      -- by yazi to the host terminal. Requires a compatible outer terminal
+      -- (kitty/Ghostty) and a yazi version with the embedded-terminal fix.
+      -- See documentation/kitty-graphics.md.
+      forward_kitty_graphics = false,
     },
   },
 }

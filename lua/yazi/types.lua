@@ -31,6 +31,7 @@
 ---@class(exact) yazi.OptInFeatures
 ---@field public use_cwd_file? boolean # use a file to store the last directory that yazi was in before it was closed. Defaults to `true`.
 ---@field public yazi_plugin_keymaps? YaziPluginKeymaps # keymaps that are registered *inside yazi* by the `nvim.yazi` plugin instead of as Neovim terminal-mode maps. yazi owns these keys, so they are automatically disabled while yazi is in an input mode (bulk rename, filter, find).
+---@field public forward_kitty_graphics? boolean # forward kitty graphics protocol (KGP) escape sequences emitted by yazi to the host terminal. Requires a yazi version that keeps an environment-detected kitty brand in embedded terminals. Experimental.
 
 ---@alias YaziKeymap string | false # `string` is a keybinding such as "<c-tab>", false means the keybinding is disabled
 
