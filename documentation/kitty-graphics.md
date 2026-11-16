@@ -48,9 +48,11 @@ set -ga update-environment TERM
 set -ga update-environment TERM_PROGRAM
 ```
 
-Restart tmux after changing the configuration. Without passthrough, the
-placeholder characters still reach the host terminal, but the image data does
-not, so nothing is displayed.
+Restart tmux after changing the configuration. yazi.nvim wraps the forwarded
+APCs in tmux's DCS passthrough format (`ESC Ptmux; ... ESC\`) automatically;
+`allow-passthrough` only permits that wrapper and does not forward raw APC
+sequences. Without passthrough, the placeholder characters still reach the host
+terminal, but the image data does not, so nothing is displayed.
 
 ## How it works
 

@@ -209,6 +209,9 @@ set -ga update-environment TERM
 set -ga update-environment TERM_PROGRAM
 ```
 
+yazi.nvim wraps the forwarded APCs in tmux's DCS passthrough format
+automatically. `allow-passthrough on` is still required.
+
 See [documentation/kitty-graphics.md](documentation/kitty-graphics.md) for
 details and limitations.
 

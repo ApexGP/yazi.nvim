@@ -25,13 +25,27 @@ function M.is_image_payload(sequence)
   return action ~= "q"
 end
 
+---tmux only forwards sequences wrapped in its DCS passthrough format. The
+---`allow-passthrough` option permits this wrapper; it does not forward raw
+---APC sequences.
+---@param data string
+---@return string
+function M.wrap_for_tmux(data)
+  return "\27Ptmux;" .. data:gsub("\27", "\27\27") .. "\27\\"
+end
+
 ---`io.stdout:write()` can interleave with the TUI's screen output, which
 ---splits the APC and makes the terminal discard it. `nvim_ui_send()` writes
 ---through the UI output stream instead.
 ---@param sequence string
 ---@param terminator string
 function M.forward(sequence, terminator)
-  vim.api.nvim_ui_send(sequence .. terminator)
+  local data = sequence .. terminator
+  if vim.env.TMUX ~= nil and vim.env.TMUX ~= "" then
+    data = M.wrap_for_tmux(data)
+  end
+
+  vim.api.nvim_ui_send(data)
 end
 
 ---@return boolean

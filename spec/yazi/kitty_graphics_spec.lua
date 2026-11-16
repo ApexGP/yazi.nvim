@@ -36,11 +36,22 @@ describe("kitty graphics forwarding", function()
     end)
   end)
 
+  describe("wrap_for_tmux", function()
+    it("wraps the sequence and doubles every escape", function()
+      assert.are.same(
+        "\27Ptmux;\27\27_Ga=T;AAAA\27\27\\\27\\",
+        kitty_graphics.wrap_for_tmux("\27_Ga=T;AAAA\27\\")
+      )
+    end)
+  end)
+
   describe("forward", function()
     it(
       "writes the sequence and its terminator to the UI output stream",
       function()
         local original_ui_send = vim.api.nvim_ui_send
+        local original_tmux = vim.env.TMUX
+        vim.env.TMUX = nil
         local written = {}
         vim.api.nvim_ui_send = function(data)
           written[#written + 1] = data
@@ -49,11 +60,30 @@ describe("kitty graphics forwarding", function()
         local ok, error_message =
           pcall(kitty_graphics.forward, "\27_Ga=T;AAAA", "\27\\")
         vim.api.nvim_ui_send = original_ui_send
+        vim.env.TMUX = original_tmux
 
         assert(ok, error_message)
         assert.are.same({ "\27_Ga=T;AAAA\27\\" }, written)
       end
     )
+
+    it("wraps sequences when running inside tmux", function()
+      local original_ui_send = vim.api.nvim_ui_send
+      local original_tmux = vim.env.TMUX
+      vim.env.TMUX = "/tmp/tmux-test"
+      local written = {}
+      vim.api.nvim_ui_send = function(data)
+        written[#written + 1] = data
+      end
+
+      local ok, error_message =
+        pcall(kitty_graphics.forward, "\27_Ga=T;AAAA", "\27\\")
+      vim.api.nvim_ui_send = original_ui_send
+      vim.env.TMUX = original_tmux
+
+      assert(ok, error_message)
+      assert.are.same({ "\27Ptmux;\27\27_Ga=T;AAAA\27\27\\\27\\" }, written)
+    end)
   end)
 
   it("is disabled by default", function()
