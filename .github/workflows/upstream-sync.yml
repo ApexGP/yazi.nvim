@@ -1,0 +1,174 @@
+name: Sync upstream
+
+on:
+  schedule:
+    - cron: "27 4 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  issues: write
+
+concurrency:
+  group: upstream-sync
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Fetch upstream
+        run: |
+          git remote add upstream https://github.com/mikavilpas/yazi.nvim.git 2>/dev/null || true
+          git fetch upstream main
+
+      - name: Compare baseline
+        id: baseline
+        run: |
+          if [ -f .github/upstream-baseline.txt ]; then
+            baseline="$(cat .github/upstream-baseline.txt)"
+          else
+            baseline="$(git merge-base origin/main upstream/main)"
+          fi
+          count="$(git rev-list --count "${baseline}..upstream/main")"
+          echo "value=${baseline}" >> "$GITHUB_OUTPUT"
+          echo "count=${count}" >> "$GITHUB_OUTPUT"
+          echo "baseline=${baseline}, new commits=${count}"
+
+      - name: Nothing to sync
+        if: steps.baseline.outputs.count == '0'
+        run: echo "No new upstream commits since ${{ steps.baseline.outputs.value }}"
+
+      - name: Prepare sync branch
+        if: steps.baseline.outputs.count != '0'
+        id: sync
+        run: |
+          sha="$(git rev-parse upstream/main)"
+          short="$(git rev-parse --short upstream/main)"
+          branch="sync/upstream-${short}"
+          echo "sha=${sha}" >> "$GITHUB_OUTPUT"
+          echo "short=${short}" >> "$GITHUB_OUTPUT"
+          echo "branch=${branch}" >> "$GITHUB_OUTPUT"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -B "${branch}"
+
+      - name: Merge upstream
+        if: steps.baseline.outputs.count != '0'
+        id: merge
+        continue-on-error: true
+        run: git merge --no-edit upstream/main
+
+      - name: Record conflicts and abort
+        if: steps.baseline.outputs.count != '0' && steps.merge.outcome != 'success'
+        run: |
+          git diff --name-only --diff-filter=U > /tmp/conflicts.txt || true
+          git merge --abort
+          git push origin "${{ steps.sync.outputs.branch }}" --force
+
+      - name: Install Rust
+        if: steps.baseline.outputs.count != '0' && steps.merge.outcome == 'success'
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install stylua
+        if: steps.baseline.outputs.count != '0' && steps.merge.outcome == 'success'
+        run: cargo install stylua --locked
+
+      - name: Install Neovim
+        if: steps.baseline.outputs.count != '0' && steps.merge.outcome == 'success'
+        uses: rhysd/action-setup-vim@v1
+        with:
+          neovim: true
+          version: stable
+
+      - name: Run checks
+        if: steps.baseline.outputs.count != '0' && steps.merge.outcome == 'success'
+        id: test
+        continue-on-error: true
+        run: |
+          set -o pipefail
+          {
+            echo "== stylua =="
+            stylua --check lua spec
+            echo "== load plugin =="
+            nvim --headless -u NONE --cmd 'set rtp+=.' -c 'lua assert(require("yazi"))' +qa
+          } 2>&1 | tee /tmp/test.log
+
+      - name: Push merge that needs attention
+        if: steps.baseline.outputs.count != '0' && steps.merge.outcome == 'success' && steps.test.outcome != 'success'
+        run: git push origin "${{ steps.sync.outputs.branch }}" --force
+
+      - name: Create issue on failure
+        if: steps.baseline.outputs.count != '0' && (steps.merge.outcome != 'success' || steps.test.outcome != 'success')
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          title="Upstream sync failed at ${{ steps.sync.outputs.short }}"
+          if [ "$(gh issue list --state open --search "${title} in:title" --json number --jq 'length')" -ne 0 ]; then
+            echo "An open issue already exists for ${title}."
+            exit 0
+          fi
+          gh label create upstream-sync --color FBCA04 --description "Upstream sync needs manual attention" 2>/dev/null || true
+          {
+            echo "The scheduled upstream sync could not update this fork."
+            echo
+            echo "- Baseline: \`${{ steps.baseline.outputs.value }}\`"
+            echo "- Upstream head: \`${{ steps.sync.outputs.sha }}\`"
+            echo "- Sync branch: \`${{ steps.sync.outputs.branch }}\`"
+            echo
+            echo "## Upstream commits"
+            echo '```'
+            git log --oneline "${{ steps.baseline.outputs.value }}..upstream/main" | head -50
+            echo '```'
+            echo
+            echo "## Conflict files"
+            echo '```'
+            cat /tmp/conflicts.txt 2>/dev/null || echo "(no merge conflict; see the test log)"
+            echo '```'
+            echo
+            echo "## Test log"
+            echo '<details><summary>stylua / nvim output</summary>'
+            echo
+            echo '```'
+            tail -200 /tmp/test.log 2>/dev/null || echo "(no test log)"
+            echo '```'
+            echo
+            echo '</details>'
+            echo
+            echo "## How to resolve locally"
+            echo '```sh'
+            echo "git fetch origin"
+            echo "git fetch upstream"
+            echo "git checkout -B ${{ steps.sync.outputs.branch }} origin/${{ steps.sync.outputs.branch }}"
+            echo "# conflict case: reproduce and resolve"
+            echo "git merge upstream/main"
+            echo "# then verify"
+            echo "stylua --check lua spec"
+            echo "mise test"
+            echo "git push origin ${{ steps.sync.outputs.branch }}"
+            echo '```'
+            echo
+            echo "This is a personal fork maintained by ApexGP."
+          } > /tmp/issue.md
+          gh issue create \
+            --title "${title}" \
+            --body-file /tmp/issue.md \
+            --label upstream-sync \
+            --assignee "${{ github.repository_owner }}"
+
+      - name: Publish successful sync
+        if: steps.baseline.outputs.count != '0' && steps.merge.outcome == 'success' && steps.test.outcome == 'success'
+        run: |
+          git checkout main
+          git merge --ff-only "${{ steps.sync.outputs.branch }}"
+          echo "${{ steps.sync.outputs.sha }}" > .github/upstream-baseline.txt
+          git add .github/upstream-baseline.txt
+          git commit -m "chore: record upstream baseline ${{ steps.sync.outputs.short }}"
+          git push origin main
