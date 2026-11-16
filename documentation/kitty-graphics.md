@@ -18,8 +18,8 @@ data.
 - kitty >= 0.28.0 or Ghostty. Both support KGP with unicode placeholders.
 - yazi with the embedded-terminal fix. Without it, yazi reports libvterm via
   XTVERSION and overrides the kitty brand, so the feature does nothing.
-- Neovim with `TermRequest` support for APC sequences (0.11+). The feature is
-  tested with Neovim 0.12.6.
+- Neovim 0.12+ (`TermRequest` support for APC sequences and `nvim_ui_send()`).
+  The feature is tested with Neovim 0.12.6.
 - A TUI session. GUI clients and remote UI clients do not share Neovim's
   stdout, so the forwarded sequences cannot reach the host terminal.
 

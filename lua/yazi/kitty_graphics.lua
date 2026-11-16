@@ -28,12 +28,22 @@ end
 ---@param sequence string
 ---@param terminator string
 function M.forward(sequence, terminator)
+  local data = sequence .. terminator
+
+  -- `io.stdout:write()` can interleave with the TUI's screen output, which
+  -- splits the APC and makes the terminal discard it. `nvim_ui_send()` writes
+  -- through the UI output stream instead.
+  if vim.api.nvim_ui_send ~= nil then
+    vim.api.nvim_ui_send(data)
+    return
+  end
+
   local stdout = io.stdout
   if stdout == nil then
     return
   end
 
-  stdout:write(sequence, terminator)
+  stdout:write(data)
   stdout:flush()
 end
 
@@ -54,6 +64,15 @@ function M.setup(buffer)
   if vim.fn.exists("##TermRequest") ~= 1 then
     vim.notify(
       "yazi.nvim: kitty graphics forwarding requires Neovim with TermRequest APC support",
+      vim.log.levels.WARN,
+      { title = "yazi.nvim" }
+    )
+    return
+  end
+
+  if vim.api.nvim_ui_send == nil then
+    vim.notify(
+      "yazi.nvim: kitty graphics forwarding requires Neovim 0.12+ (nvim_ui_send)",
       vim.log.levels.WARN,
       { title = "yazi.nvim" }
     )

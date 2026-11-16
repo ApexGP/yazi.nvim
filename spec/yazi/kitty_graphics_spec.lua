@@ -37,26 +37,23 @@ describe("kitty graphics forwarding", function()
   end)
 
   describe("forward", function()
-    it("writes the sequence and its terminator to stdout", function()
-      local original_stdout = io.stdout
-      local written = {}
-      io.stdout = {
-        write = function(_, ...)
-          for _, value in ipairs({ ... }) do
-            written[#written + 1] = value
-          end
-          return true
-        end,
-        flush = function() end,
-      }
+    it(
+      "writes the sequence and its terminator to the UI output stream",
+      function()
+        local original_ui_send = vim.api.nvim_ui_send
+        local written = {}
+        vim.api.nvim_ui_send = function(data)
+          written[#written + 1] = data
+        end
 
-      local ok, error_message =
-        pcall(kitty_graphics.forward, "\27_Ga=T;AAAA", "\27\\")
-      io.stdout = original_stdout
+        local ok, error_message =
+          pcall(kitty_graphics.forward, "\27_Ga=T;AAAA", "\27\\")
+        vim.api.nvim_ui_send = original_ui_send
 
-      assert(ok, error_message)
-      assert.are.same({ "\27_Ga=T;AAAA", "\27\\" }, written)
-    end)
+        assert(ok, error_message)
+        assert.are.same({ "\27_Ga=T;AAAA\27\\" }, written)
+      end
+    )
   end)
 
   it("is disabled by default", function()

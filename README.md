@@ -199,7 +199,7 @@ This requires:
 - kitty >= 0.28.0 or Ghostty
 - a yazi version that keeps a kitty brand detected from the environment
   instead of overriding it with libvterm
-- Neovim with `TermRequest` support for APC sequences (0.11+)
+- Neovim 0.12+ (`TermRequest` support for APC sequences and `nvim_ui_send()`)
 
 When Neovim runs inside tmux, also add this to `tmux.conf`:
 
