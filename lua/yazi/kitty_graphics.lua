@@ -25,26 +25,13 @@ function M.is_image_payload(sequence)
   return action ~= "q"
 end
 
+---`io.stdout:write()` can interleave with the TUI's screen output, which
+---splits the APC and makes the terminal discard it. `nvim_ui_send()` writes
+---through the UI output stream instead.
 ---@param sequence string
 ---@param terminator string
 function M.forward(sequence, terminator)
-  local data = sequence .. terminator
-
-  -- `io.stdout:write()` can interleave with the TUI's screen output, which
-  -- splits the APC and makes the terminal discard it. `nvim_ui_send()` writes
-  -- through the UI output stream instead.
-  if vim.api.nvim_ui_send ~= nil then
-    vim.api.nvim_ui_send(data)
-    return
-  end
-
-  local stdout = io.stdout
-  if stdout == nil then
-    return
-  end
-
-  stdout:write(data)
-  stdout:flush()
+  vim.api.nvim_ui_send(sequence .. terminator)
 end
 
 ---@return boolean
