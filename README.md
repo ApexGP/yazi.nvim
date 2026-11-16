@@ -72,11 +72,17 @@ like lazy.nvim. To see which dependencies are installed, see [lazy.lua](./lazy.l
 yourself. Also see the discussion in [issue 306](https://github.com/mikavilpas/yazi.nvim/issues/306) and examples of
 [other Neovim plugins using this feature](https://github.com/search?q=path%3A%2F%5Elazy%5C.lua%24%2F&type=code).
 
+> [!NOTE]
+>
+> This fork's experimental KGP feature requires the `yazi-kgp` build:
+> `brew tap ApexGP/yazi-kgp && brew install yazi-kgp` (or the Scoop/Arch/apt packages). Upstream yazi does not include
+> the patch yet.
+
 ```lua
 ---@type LazySpec
 return {
-  "mikavilpas/yazi.nvim",
-  version = "*", -- use the latest stable version
+  "ApexGP/yazi.nvim",
+  branch = "main",
   event = "VeryLazy",
   dependencies = {
     { "nvim-lua/plenary.nvim", lazy = true },
@@ -107,6 +113,12 @@ return {
     open_for_directories = false,
     keymaps = {
       show_help = "<f1>",
+    },
+    -- Experimental: forward kitty graphics protocol (KGP) from yazi to the
+    -- host terminal. Requires the yazi-kgp build and a KGP-capable terminal.
+    -- See documentation/kitty-graphics.md.
+    future_features = {
+      forward_kitty_graphics = true,
     },
   },
   -- 👇 if you use `open_for_directories=true`, this is recommended
