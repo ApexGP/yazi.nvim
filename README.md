@@ -42,10 +42,9 @@ open yazi in a floating window in Neovim.
 - 🆕 Send custom commands to yazi ([documentation](./documentation/emitting-commands-to-yazi.md))
 
 For previewing images with yazi, see Yazi's
-[documentation related to Neovim](https://yazi-rs.github.io/docs/image-preview/#neovim).
-If you use kitty or Ghostty and a yazi version with the embedded-terminal fix,
-yazi.nvim can forward the kitty graphics protocol to the host terminal. See
-[documentation/kitty-graphics.md](documentation/kitty-graphics.md).
+[documentation related to Neovim](https://yazi-rs.github.io/docs/image-preview/#neovim). If you use kitty or Ghostty and
+a yazi version with the embedded-terminal fix, yazi.nvim can forward the kitty graphics protocol to the host terminal.
+See [documentation/kitty-graphics.md](documentation/kitty-graphics.md).
 
 ## 📦 Installation
 
@@ -180,9 +179,8 @@ These are the default keybindings that are available when yazi is open:
 
 ### Kitty graphics (experimental)
 
-Neovim's embedded terminal cannot display images by itself. By default yazi
-detects it as a terminal without graphics support and falls back to chafa.
-When the host terminal supports the kitty graphics protocol (KGP) with unicode
+Neovim's embedded terminal cannot display images by itself. By default yazi detects it as a terminal without graphics
+support and falls back to chafa. When the host terminal supports the kitty graphics protocol (KGP) with unicode
 placeholders, yazi.nvim can forward the image data emitted by yazi:
 
 ```lua
@@ -197,8 +195,7 @@ opts = {
 This requires:
 
 - kitty >= 0.28.0 or Ghostty
-- a yazi version that keeps a kitty brand detected from the environment
-  instead of overriding it with libvterm
+- a yazi version that keeps a kitty brand detected from the environment instead of overriding it with libvterm
 - Neovim 0.12+ (`TermRequest` support for APC sequences and `nvim_ui_send()`)
 
 When Neovim runs inside tmux, also add this to `tmux.conf`:
@@ -209,11 +206,10 @@ set -ga update-environment TERM
 set -ga update-environment TERM_PROGRAM
 ```
 
-yazi.nvim wraps the forwarded APCs in tmux's DCS passthrough format
-automatically. `allow-passthrough on` is still required.
+yazi.nvim wraps the forwarded APCs in tmux's DCS passthrough format automatically. `allow-passthrough on` is still
+required.
 
-See [documentation/kitty-graphics.md](documentation/kitty-graphics.md) for
-details and limitations.
+See [documentation/kitty-graphics.md](documentation/kitty-graphics.md) for details and limitations.
 
 ### ⚙️⚙️ Advanced configuration
 

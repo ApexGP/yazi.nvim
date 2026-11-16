@@ -18,7 +18,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout main
-        uses: actions/checkout@v4
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: main
           fetch-depth: 0
@@ -38,8 +38,10 @@ jobs:
             baseline="$(git merge-base origin/main upstream/main)"
           fi
           count="$(git rev-list --count "${baseline}..upstream/main")"
-          echo "value=${baseline}" >> "$GITHUB_OUTPUT"
-          echo "count=${count}" >> "$GITHUB_OUTPUT"
+          {
+            echo "value=${baseline}"
+            echo "count=${count}"
+          } >> "$GITHUB_OUTPUT"
           echo "baseline=${baseline}, new commits=${count}"
 
       - name: Nothing to sync
@@ -53,9 +55,11 @@ jobs:
           sha="$(git rev-parse upstream/main)"
           short="$(git rev-parse --short upstream/main)"
           branch="sync/upstream-${short}"
-          echo "sha=${sha}" >> "$GITHUB_OUTPUT"
-          echo "short=${short}" >> "$GITHUB_OUTPUT"
-          echo "branch=${branch}" >> "$GITHUB_OUTPUT"
+          {
+            echo "sha=${sha}"
+            echo "short=${short}"
+            echo "branch=${branch}"
+          } >> "$GITHUB_OUTPUT"
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git checkout -B "${branch}"
