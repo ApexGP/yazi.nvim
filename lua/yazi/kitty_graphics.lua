@@ -1,5 +1,7 @@
 local M = {}
 
+local PROBE_TIMEOUT_MS = 2000
+
 -- Kitty graphics protocol escape sequences are APC sequences: ESC _ G ... ESC
 -- backslash. Neovim's embedded terminal (libvterm) keeps the unicode
 -- placeholder cells but discards the APC, so yazi.nvim has to relay the APC to
@@ -10,19 +12,49 @@ function M.is_kitty_graphics_sequence(sequence)
   return sequence:sub(1, 3) == "\27_G"
 end
 
----Yazi's capability probe (`a=q`) does not draw anything. Relaying it would
----make the host terminal reply with a response that cannot be delivered back
----to yazi, so only forward actual image payloads.
+---@param sequence string
+---@return string
+function M.metadata(sequence)
+  return sequence:match("^\27_G([^;]*)") or ""
+end
+
+---@param sequence string
+---@return string|nil
+function M.action(sequence)
+  local metadata = M.metadata(sequence)
+  return metadata:match("^a=([^,]+)") or metadata:match(",a=([^,]+)")
+end
+
+---Kitty graphics capability probes (`a=q`) do not draw anything. They must
+---still be relayed to the host terminal so that yazi learns whether the host
+---supports the protocol and shared memory image transfers.
+---@param sequence string
+---@return boolean
+function M.is_capability_probe(sequence)
+  if not M.is_kitty_graphics_sequence(sequence) then
+    return false
+  end
+  return M.action(sequence) == "q"
+end
+
 ---@param sequence string
 ---@return boolean
 function M.is_image_payload(sequence)
   if not M.is_kitty_graphics_sequence(sequence) then
     return false
   end
+  return M.action(sequence) ~= "q"
+end
 
-  local meta = sequence:match("^\27_G([^;]*)") or ""
-  local action = meta:match("^a=([^,]+)") or meta:match(",a=([^,]+)")
-  return action ~= "q"
+---The TUI strips the APC terminator from host terminal responses. yazi's
+---parser expects the terminating ST sequence.
+---@param response string
+---@return string
+function M.ensure_terminator(response)
+  if response:sub(-2) == "\27\\" then
+    return response
+  end
+  return response .. "\27\\"
 end
 
 ---tmux only forwards sequences wrapped in its DCS passthrough format. The
@@ -89,10 +121,72 @@ function M.setup(buffer)
     )
   end
 
+  local group = vim.api.nvim_create_augroup(
+    "yazi_kitty_graphics_" .. buffer,
+    { clear = true }
+  )
+  ---@type table<string, true>
+  local pending_probes = {}
+
+  -- yazi asks the host terminal whether it supports image transfers. Relay the
+  -- terminal's answer back to yazi. When shared memory transfers are accepted,
+  -- yazi sends only a reference to the image instead of the encoded pixels, so
+  -- the image data never has to pass through Neovim's terminal emulator.
+  vim.api.nvim_create_autocmd("TermResponse", {
+    group = group,
+    callback = function(event)
+      local response = (event.data and event.data.sequence)
+        or vim.v.termresponse
+      if
+        type(response) ~= "string"
+        or not M.is_kitty_graphics_sequence(response)
+      then
+        return
+      end
+
+      local id = M.metadata(response):match("i=(%d+)")
+      if id == nil or pending_probes[id] == nil then
+        return
+      end
+      pending_probes[id] = nil
+
+      if not vim.api.nvim_buf_is_valid(buffer) then
+        return
+      end
+      local channel = vim.bo[buffer].channel
+      if type(channel) == "number" and channel > 0 then
+        -- The yazi process may have exited between the probe and the response.
+        pcall(vim.api.nvim_chan_send, channel, M.ensure_terminator(response))
+      end
+    end,
+  })
+
+  vim.api.nvim_create_autocmd("BufWipeout", {
+    group = group,
+    buffer = buffer,
+    callback = function()
+      vim.api.nvim_del_augroup_by_id(group)
+    end,
+  })
+
   vim.api.nvim_create_autocmd("TermRequest", {
+    group = group,
     buffer = buffer,
     callback = function(event)
       local sequence = event.data.sequence
+
+      if M.is_capability_probe(sequence) then
+        local id = M.metadata(sequence):match("i=(%d+)")
+        if id ~= nil then
+          pending_probes[id] = true
+          vim.defer_fn(function()
+            pending_probes[id] = nil
+          end, PROBE_TIMEOUT_MS)
+        end
+        M.forward(sequence, event.data.terminator)
+        return
+      end
+
       if not M.is_image_payload(sequence) then
         return
       end

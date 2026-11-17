@@ -55,6 +55,12 @@ function M.yazi(config, input_path, args)
   win:open_and_display()
   local yazi_buffer = win.content_buffer
 
+  -- Set up forwarding before yazi starts so its startup capability probes are
+  -- not missed.
+  if config.future_features.forward_kitty_graphics == true then
+    require("yazi.kitty_graphics").setup(yazi_buffer)
+  end
+
   local yazi_process, yazi_context = YaziProcess:start(config, paths, {
     on_ya_first_event = function(api)
       config.hooks.on_yazi_ready(yazi_buffer, config, api)
@@ -152,10 +158,6 @@ function M.yazi(config, input_path, args)
   })
 
   M.active_contexts:push(yazi_context)
-
-  if config.future_features.forward_kitty_graphics == true then
-    require("yazi.kitty_graphics").setup(yazi_buffer)
-  end
 
   config.hooks.yazi_opened(path.filename, win.content_buffer, config)
 

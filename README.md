@@ -193,7 +193,8 @@ These are the default keybindings that are available when yazi is open:
 
 Neovim's embedded terminal cannot display images by itself. By default yazi detects it as a terminal without graphics
 support and falls back to chafa. When the host terminal supports the kitty graphics protocol (KGP) with unicode
-placeholders, yazi.nvim can forward the image data emitted by yazi:
+placeholders, yazi.nvim can forward the image data emitted by yazi. This covers ordinary images and previews that yazi
+renders through external tools, such as PDF pages and video frames:
 
 ```lua
 ---@type YaziConfig
@@ -206,9 +207,9 @@ opts = {
 
 This requires:
 
-- kitty >= 0.28.0 or Ghostty
+- kitty >= 0.28.0 or Ghostty >= 1.4 (shared memory image transfers)
 - a yazi version that keeps a kitty brand detected from the environment instead of overriding it with libvterm
-- Neovim 0.12+ (`TermRequest` support for APC sequences and `nvim_ui_send()`)
+- Neovim 0.12+ (`TermRequest` support for APC sequences, `TermResponse` support for APC responses, and `nvim_ui_send()`)
 
 When Neovim runs inside tmux, also add this to `tmux.conf`:
 
