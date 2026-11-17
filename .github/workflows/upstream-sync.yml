@@ -2,8 +2,7 @@ name: Sync upstream
 
 on:
   schedule:
-    # Temporary diagnostic: verify that scheduled workflows fire at all.
-    - cron: "*/5 * * * *"
+    - cron: "27 4 * * *"
   workflow_dispatch:
 
 permissions:
