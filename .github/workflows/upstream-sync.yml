@@ -70,6 +70,16 @@ jobs:
         continue-on-error: true
         run: git merge --no-edit upstream/main
 
+      - name: Keep the fork's workflows
+        if: steps.baseline.outputs.count != '0' && steps.merge.outcome == 'success'
+        run: |
+          # GITHUB_TOKEN is not allowed to push changes to .github/workflows.
+          # This fork's workflows intentionally differ from upstream, so restore
+          # them from main and fold that into the merge commit.
+          git rm -r --quiet .github/workflows
+          git checkout main -- .github/workflows
+          git commit --amend --no-edit
+
       - name: Record conflicts and abort
         if: steps.baseline.outputs.count != '0' && steps.merge.outcome != 'success'
         run: |
@@ -109,8 +119,21 @@ jobs:
         if: steps.baseline.outputs.count != '0' && steps.merge.outcome == 'success' && steps.test.outcome != 'success'
         run: git push origin "${{ steps.sync.outputs.branch }}" --force
 
+      - name: Publish successful sync
+        if: steps.baseline.outputs.count != '0' && steps.merge.outcome == 'success' && steps.test.outcome == 'success'
+        id: publish
+        run: |
+          git checkout main
+          git merge --ff-only "${{ steps.sync.outputs.branch }}"
+          echo "${{ steps.sync.outputs.sha }}" > .github/upstream-baseline.txt
+          git add .github/upstream-baseline.txt
+          git commit -m "chore: record upstream baseline ${{ steps.sync.outputs.short }}"
+          git push origin main
+
       - name: Create issue on failure
-        if: steps.baseline.outputs.count != '0' && (steps.merge.outcome != 'success' || steps.test.outcome != 'success')
+        if: >
+          steps.baseline.outputs.count != '0' &&
+          (failure() || steps.merge.outcome != 'success' || steps.test.outcome != 'success')
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
@@ -126,6 +149,12 @@ jobs:
             echo "- Baseline: \`${{ steps.baseline.outputs.value }}\`"
             echo "- Upstream head: \`${{ steps.sync.outputs.sha }}\`"
             echo "- Sync branch: \`${{ steps.sync.outputs.branch }}\`"
+            echo "- Run: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+            echo
+            echo "## Failure stage"
+            echo "- merge: \`${{ steps.merge.outcome }}\`"
+            echo "- checks: \`${{ steps.test.outcome }}\`"
+            echo "- publish: \`${{ steps.publish.outcome }}\`"
             echo
             echo "## Upstream commits"
             echo '```'
@@ -134,7 +163,7 @@ jobs:
             echo
             echo "## Conflict files"
             echo '```'
-            cat /tmp/conflicts.txt 2>/dev/null || echo "(no merge conflict; see the test log)"
+            cat /tmp/conflicts.txt 2>/dev/null || echo "(no merge conflict)"
             echo '```'
             echo
             echo "## Test log"
@@ -150,8 +179,7 @@ jobs:
             echo '```sh'
             echo "git fetch origin"
             echo "git fetch upstream"
-            echo "git checkout -B ${{ steps.sync.outputs.branch }} origin/${{ steps.sync.outputs.branch }}"
-            echo "# conflict case: reproduce and resolve"
+            echo "git checkout -B ${{ steps.sync.outputs.branch }} origin/main"
             echo "git merge upstream/main"
             echo "# then verify"
             echo "stylua --check lua spec"
@@ -166,13 +194,3 @@ jobs:
             --body-file /tmp/issue.md \
             --label upstream-sync \
             --assignee "${{ github.repository_owner }}"
-
-      - name: Publish successful sync
-        if: steps.baseline.outputs.count != '0' && steps.merge.outcome == 'success' && steps.test.outcome == 'success'
-        run: |
-          git checkout main
-          git merge --ff-only "${{ steps.sync.outputs.branch }}"
-          echo "${{ steps.sync.outputs.sha }}" > .github/upstream-baseline.txt
-          git add .github/upstream-baseline.txt
-          git commit -m "chore: record upstream baseline ${{ steps.sync.outputs.short }}"
-          git push origin main
