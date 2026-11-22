@@ -3,7 +3,9 @@
 # Global configuration options
 [global]
 # List of rules to disable (uncomment and modify as needed)
-disable = ["MD013", "MD028"]
+# MD076 (blank line between list items) conflicts with upstream documentation
+# that is synced into this fork.
+disable = ["MD013", "MD028", "MD076"]
 
 # List of rules to enable exclusively (if provided, only these rules will run)
 # enable = ["MD001", "MD003", "MD004"]
