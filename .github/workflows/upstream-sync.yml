@@ -132,8 +132,8 @@ jobs:
 
       - name: Create issue on failure
         if: >
-          steps.baseline.outputs.count != '0' &&
-          (failure() || steps.merge.outcome != 'success' || steps.test.outcome != 'success')
+          steps.baseline.outputs.count != '0' && (failure() || steps.merge.outcome != 'success' || steps.test.outcome !=
+          'success')
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
