@@ -116,7 +116,7 @@ jobs:
 
       - name: Install Rust
         if: steps.baseline.outputs.count != '0' && steps.merge.outcome == 'success'
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@39008827e6b4319a349e9a42dfc90579dd25f1ca # stable
 
       - name: Install stylua
         if: steps.baseline.outputs.count != '0' && steps.merge.outcome == 'success'
@@ -124,7 +124,7 @@ jobs:
 
       - name: Install Neovim
         if: steps.baseline.outputs.count != '0' && steps.merge.outcome == 'success'
-        uses: rhysd/action-setup-vim@v1
+        uses: rhysd/action-setup-vim@febef33995d6649302e9d88dda81e071b68f16a7 # v1
         with:
           neovim: true
           version: stable
