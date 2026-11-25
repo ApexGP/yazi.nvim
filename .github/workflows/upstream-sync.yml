@@ -52,7 +52,11 @@ jobs:
         if: steps.baseline.outputs.count == '0'
         run: echo "No new upstream commits since ${{ steps.baseline.outputs.value }}"
 
-      - name: Prepare sync branch
+      - name: Fetch sync history
+        if: steps.baseline.outputs.count != '0'
+        run: git fetch origin sync/history:refs/remotes/origin/sync/history --force || true
+
+      - name: Prepare sync history
         if: steps.baseline.outputs.count != '0'
         id: sync
         run: |
@@ -66,53 +70,59 @@ jobs:
           } >> "$GITHUB_OUTPUT"
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git checkout -B "${branch}"
+
+          # sync/history keeps the upstream ancestry; main only gets one
+          # squashed commit per sync. Bring new fork-local main commits into
+          # the history branch first.
+          if git rev-parse --verify refs/remotes/origin/sync/history >/dev/null 2>&1; then
+            git checkout -B sync/history refs/remotes/origin/sync/history
+            git merge --no-edit -X theirs main
+          else
+            git checkout -B sync/history main
+          fi
+          git branch -f "${branch}" sync/history
 
       - name: Merge upstream
         if: steps.baseline.outputs.count != '0'
         id: merge
         continue-on-error: true
         run: |
-          if git merge --no-edit upstream/main; then
-            exit 0
+          if ! git merge --no-ff --no-commit --no-edit upstream/main; then
+            conflicts="$(git diff --name-only --diff-filter=U)"
+            if [ -z "$conflicts" ]; then
+              echo "Merge failed without conflicting files"
+              exit 1
+            fi
+
+            non_workflow="$(printf '%s\n' "$conflicts" | grep -v '^\.github/workflows/' || true)"
+            if [ -n "$non_workflow" ]; then
+              echo "Conflicts outside .github/workflows:"
+              printf '%s\n' "$non_workflow"
+              exit 1
+            fi
           fi
 
-          conflicts="$(git diff --name-only --diff-filter=U)"
-          if [ -z "$conflicts" ]; then
-            echo "Merge failed without conflicting files"
-            exit 1
-          fi
-
-          non_workflow="$(printf '%s\n' "$conflicts" | grep -v '^\.github/workflows/' || true)"
-          if [ -n "$non_workflow" ]; then
-            echo "Conflicts outside .github/workflows:"
-            printf '%s\n' "$non_workflow"
-            exit 1
-          fi
-
-          # Upstream workflow changes are not applicable to this fork. Keep
-          # ours and complete the merge; the next step normalizes the whole
-          # .github/workflows directory from main.
-          git checkout --ours -- .github/workflows
-          git add .github/workflows
-          git commit --no-edit
-
-      - name: Keep the fork's workflows
-        if: steps.baseline.outputs.count != '0' && steps.merge.outcome == 'success'
-        run: |
           # GITHUB_TOKEN is not allowed to push changes to .github/workflows.
           # This fork's workflows intentionally differ from upstream, so restore
           # them from main and fold that into the merge commit.
-          git rm -r --quiet .github/workflows
+          git rm -r --quiet -f .github/workflows
           git checkout main -- .github/workflows
-          git commit --amend --no-edit
+          git add .github/workflows
+          echo "${{ steps.sync.outputs.sha }}" > .github/upstream-baseline.txt
+          git add .github/upstream-baseline.txt
+          if git diff --cached --quiet && git diff --quiet; then
+            echo "sync/history already contains the upstream changes"
+          else
+            git commit --no-edit
+          fi
 
       - name: Record conflicts and abort
         if: steps.baseline.outputs.count != '0' && steps.merge.outcome != 'success'
         run: |
           git diff --name-only --diff-filter=U > /tmp/conflicts.txt || true
-          git merge --abort
-          git push origin "${{ steps.sync.outputs.branch }}" --force
+          git merge --abort 2>/dev/null || true
+          git branch -f "${{ steps.sync.outputs.branch }}" sync/history
+          git push origin "refs/heads/${{ steps.sync.outputs.branch }}" --force
 
       - name: Install Rust
         if: steps.baseline.outputs.count != '0' && steps.merge.outcome == 'success'
@@ -144,17 +154,19 @@ jobs:
 
       - name: Push merge that needs attention
         if: steps.baseline.outputs.count != '0' && steps.merge.outcome == 'success' && steps.test.outcome != 'success'
-        run: git push origin "${{ steps.sync.outputs.branch }}" --force
+        run: |
+          git branch -f "${{ steps.sync.outputs.branch }}" sync/history
+          git push origin "refs/heads/${{ steps.sync.outputs.branch }}" --force
 
       - name: Publish successful sync
         if: steps.baseline.outputs.count != '0' && steps.merge.outcome == 'success' && steps.test.outcome == 'success'
         id: publish
         run: |
-          git checkout main
-          git merge --ff-only "${{ steps.sync.outputs.branch }}"
-          echo "${{ steps.sync.outputs.sha }}" > .github/upstream-baseline.txt
-          git add .github/upstream-baseline.txt
-          git commit -m "chore: record upstream baseline ${{ steps.sync.outputs.short }}"
+          # main gets one squashed commit; sync/history keeps the upstream
+          # ancestry and is pushed for the next incremental merge.
+          commit="$(git commit-tree sync/history^{tree} -p main -m "chore(sync): upstream ${{ steps.sync.outputs.short }}")"
+          git checkout -B main "${commit}"
+          git push origin sync/history
           git push origin main
 
       - name: Create issue on failure
@@ -210,13 +222,15 @@ jobs:
             echo '```sh'
             echo "git fetch origin"
             echo "git fetch upstream"
-            echo "git checkout -B ${{ steps.sync.outputs.branch }} origin/main"
+            echo "git checkout -B ${{ steps.sync.outputs.branch }} origin/${{ steps.sync.outputs.branch }}"
             echo "git merge upstream/main"
             echo "# then verify"
             echo "stylua --check lua spec"
             echo "mise test"
             echo "git push origin ${{ steps.sync.outputs.branch }}"
             echo '```'
+            echo
+            echo "main receives one squashed commit per sync; upstream ancestry is kept on the \`sync/history\` branch."
             echo
             echo "This is a personal fork maintained by ApexGP."
           } > /tmp/issue.md
