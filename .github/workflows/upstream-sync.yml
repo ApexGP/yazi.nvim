@@ -161,10 +161,13 @@ jobs:
       - name: Publish successful sync
         if: steps.baseline.outputs.count != '0' && steps.merge.outcome == 'success' && steps.test.outcome == 'success'
         id: publish
+        env:
+          SHORT: ${{ steps.sync.outputs.short }}
         run: |
           # main gets one squashed commit; sync/history keeps the upstream
           # ancestry and is pushed for the next incremental merge.
-          commit="$(git commit-tree sync/history^{tree} -p main -m "chore(sync): upstream ${{ steps.sync.outputs.short }}")"
+          tree="$(git rev-parse "sync/history^{tree}")"
+          commit="$(git commit-tree "${tree}" -p main -m "chore(sync): upstream ${SHORT}")"
           git checkout -B main "${commit}"
           git push origin sync/history
           git push origin main
