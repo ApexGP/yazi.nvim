@@ -169,8 +169,13 @@ jobs:
           tree="$(git rev-parse "sync/history^{tree}")"
           commit="$(git commit-tree "${tree}" -p main -m "chore(sync): upstream ${SHORT}")"
           git checkout -B main "${commit}"
-          git push origin sync/history
-          git push origin main
+          # Push both refs in one atomic operation. Pushing main separately
+          # after sync/history can be rejected with "missing necessary objects".
+          if ! git push --atomic origin sync/history main; then
+            git branch -f "${{ steps.sync.outputs.branch }}" sync/history
+            git push origin "refs/heads/${{ steps.sync.outputs.branch }}" --force || true
+            exit 1
+          fi
 
       - name: Create issue on failure
         if: >
